@@ -1,0 +1,14 @@
+CREATE TABLE openx.conversions (
+  id int NOT NULL,
+  datetime_click datetime DEFAULT NULL,
+  datetime datetime DEFAULT NULL,
+  zone_id int NOT NULL DEFAULT '0',
+  banner_id int NOT NULL DEFAULT '0',
+  geo char(2) NOT NULL DEFAULT '--',
+  platform int NOT NULL DEFAULT '0' ,  ip int NOT NULL DEFAULT '0',
+  conversion BINARY NOT NULL DEFAULT b'0',
+  variable varchar(32) NOT NULL DEFAULT '',
+  variable2 varchar(65000) NOT NULL,
+  price float NOT NULL DEFAULT '0.0000',
+  currency varchar(3) NOT NULL
+);
