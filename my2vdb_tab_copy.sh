@@ -14,7 +14,7 @@ vdbPass="YGtQaRSdGrVe1g"
 
 ncport="8867"
  ${sshCmd} ${myHost} sudo mkdir -p /root/tmp
- ${sshCmd} ${myHost} sudo rm -frv /root/tmp/*
+ ${sshCmd} ${myHost} sudo rm -f /root/tmp/*
  ${sshCmd} ${myHost} sudo chown -R mysql:mysql /root/tmp
  echo "mysqldump --lock-tables=false --compatible=postgresql --fields-terminated-by=,  --fields-enclosed-by=\\\" --tab='/root/tmp' ${myDb} ${myTable}"|${sshCmd} ${myHost} sudo bash
 
