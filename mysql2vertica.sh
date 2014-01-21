@@ -179,7 +179,7 @@ done
 
 [[ "${verbose}" -eq "1" ]] && echo -ne "==  Dumped data prepare\n";
 for txtFile in `ls -1 tmp/*.txt`; do
-    [[ "${verbose}" -eq "1" ]] && echo -ne "=   [PREPARE] File: ${txtFile}\t";
+    [[ "${verbose}" -eq "1" ]] && echo -ne "=   [PREPARE] File: ${txtFile}\n";
     sed -i -e 's/"0000-00-00"/NULL/g' -e 's/"0000-00-00 00:00:00"/NULL/g' -e 's/\\N/NULL/g' ${txtFile}
 done
 
