@@ -1,18 +1,11 @@
 #!/bin/bash
 
-# Variables (need to be changed to options before production use)
+# mysql2vertica.sh      - Utility to copy tables from MySQL to HP Vertica using CSV files
+#                       It prepare data before copy to vertica-compatible format
+#   @author:    Andrew Yakovlev aka NOX
+#   @license:   GPLv3
+#   @copy:      Embria.ru (c) 2014
 
-#myHost="mm3.propellerads.com"
-#myDb="openx"
-#myUser="openx"
-#myPass="bd4MYpJHq"
-#myTable="conversions"
-#sshCmd="/usr/bin/ssh -o PasswordAuthentication=no -o StrictHostKeyChecking=no"
-
-#vdbHost="vdb1"
-#vdbDb="openx"
-#vdbUser="dbadmin"
-#vdbPass="YGtQaRSdGrVe1g"
 force=0
 verbose=0
 showHelp=0
