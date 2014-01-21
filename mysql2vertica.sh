@@ -44,14 +44,13 @@ echo "    -md, --mysql-database   * MySQL database name"
 echo "    -mu, --mysql-user       * MySQL username"
 echo "    -mp, --mysql-password   * MySQL password"
 echo "    -mt, --mysql-tables     * Comma-separated table list. With --query you can set only one table"
-echo "    -vh, --vertica-host     * Vertica hostname"
 echo "    -vd, --vertica-database * Vertica database name"
 echo "    -vu, --vertica-user     * Vertica username"
 echo "    -vp, --vertica-password * Vertica password"
-echo "    -q,  --query               MySQL query for dump data (part after where), doesn't work with --force"
-echo "    -f,  --force               Drop and re-create table in Vertica before COPY data"
-echo "    -v,  --verbose             Be verbose"
-echo "    -h,  --help                Show this help"
+echo "    -q,  --query              MySQL query for dump data (part after where), doesn't work with --force"
+echo "    -f,  --force              Drop and re-create table in Vertica before COPY data"
+echo "    -v,  --verbose            Be verbose"
+echo "    -h,  --help               Show this help"
 
 exit 0;
 fi
@@ -63,20 +62,19 @@ if [[ -z $myDb ]]; then  echo "$0: --mysql-database should be defined"; exit 1; 
 if [[ -z $myUser ]]; then echo "$0: --mysql-user should be defined"; exit 1; fi
 if [[ -z $myPass ]]; then echo "$0: --mysql-password should be defined"; exit 1; fi
 if [[ -z $myTable ]]; then echo "$0: --mysql-tables should be defined"; exit 1; fi
-if [[ -z $vdbHost ]]; then echo "$0: --vertica-host should be defined"; exit 1; fi
 if [[ -z $vdbDb ]]; then echo "$0: --vertica-database should be defined"; exit 1; fi
 if [[ -z $vdbUser ]]; then echo "$0: --vertica-user should be defined"; exit 1; fi
 if [[ -z $vdbPass ]]; then echo "$0: --vertica-password should be defined"; exit 1; fi
 
 ### Check if required utilities is installed
 if [[ ! -f "$(which pv)" ]]; then echo "$0: PipeViewer (pv) is not installed"; exit 2; fi
-if [[ ! -f "$(which psql)" ]]; then echo "$0: PostgreSQL client is not installed"; exit 2; fi
+if [[ ! -f "$(which vsql)" ]]; then echo "$0: Vertica SQL client is not installed"; exit 2; fi
 if [[ ! -f "$(which mysql)" ]]; then echo "$0: MySQL client is not installed"; exit 2; fi
 if [[ ! -f "$(which mysqldump)" ]]; then echo "$0: MySQL-dump is not installed"; exit 2; fi
 
 ### Convert table list to array
 tList=( `echo $myTable|tr ',' ' '` );
-[[ "$verbose" -eq 1 ]]; echo "${#tList[@]} table(s) provided to work..."
+[[ "$verbose" -eq 1 ]] && echo "${#tList[@]} table(s) provided to work..."
 
 ### Check conflicted options
 if [[ -n "$whereClause" ]] && [[ "${#tList[@]}" -gt "1" ]]; then
@@ -92,12 +90,37 @@ rm -rf ./tmp/* >/dev/null 2>&1
 chmod 777 ./tmp/* >/dev/null 2>&1
 
 ### Start work
-[[ "$verbose" -eq 1 ]]; echo -ne "Start work at ($date "+%Y-%m-%d %H:%M:%S")\n\n";
+[[ "$verbose" -eq 1 ]] &&  echo -ne "Start work at $(date '+%Y-%m-%d %H:%M:%S')\n\n";
+
+### MySQL part -> dump table structure
+[[ "$verbose" -eq "1" ]] && echo -ne "=== Start DUMP data from MySQL\n";
+[[ "$verbose" -eq "1" ]] && echo -ne "==  Execute mysqldump for tables structure... "
+mysqldump -h${myHost} -u${myUser} -p${myPass} --lock-tables=false --no-data ${myDb} ${tList[@]} --tab='./tmp' 2>/dev/null; mDumpRes=$?;
+tStructCount=$(ls -1 tmp/*.sql 2>/dev/null|wc -l)
+if [[ "${mDumpRes}" -eq "0" ]]; then
+    [[ "$verbose" -eq "1" ]] && echo "OK: ${tStructCount} structures dumped"
+else
+    echo -ne "FAIL: mysqldump exited with code ${mDumpRes}\n\nI'm died :(\n"
+    exit 5
+fi
 
 ### Check if --query is defined
 if [[ -n "${whereClause}" ]]; then
-    echo "tq"
+### If query is defined make dump using select into outfile
+    [[ "$verbose" -eq "1" ]] && echo -ne "==  Defined query: SELECT * FROM ${tList[@]} WHERE ${whereClause} \n"
+    [[ "$verbose" -eq "1" ]] && echo -ne "==  MySQL SELECT INTO OUTFILE... "
+    mysql -nCB -N -h${myHost} -u${myUser} -p${myPass} -e "SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED; SELECT * FROM ${myTable} WHERE ${whereClause};" ${myDb}|awk -F '\t' '{ for (i=0; ++i <= NF;) { if (i==NF) { printf "\"%s\"",$(i) } else { printf "\"%s\",",$(i) } }; printf "\n" }' > tmp/${myTable}.txt; mSelectRes=$?;
+    tDumpLines=$(cat tmp/${myTable}.txt 2>/dev/null|wc -l 2>/dev/null)
+    tBytes=$(ls -lab tmp/${myTable}.txt 2>/dev/null|awk '{print $5}' 2>/dev/null)
+    tBytesH=$(ls -lah tmp/${myTable}.txt 2>/dev/null|awk '{print $5}' 2>/dev/null)
+    if [[ "${mSelectRes}" -eq "0" ]]; then
+        [[ "$verbose" -eq "1" ]] && echo -ne "OK: ${tDumpLines} lines (${tBytesH}) has been dumped\n"
+    else
+        echo -ne "FAIL: mysql exited with code ${mSelectRes}\n\nI'm died :(\n"
+        exit 5
+    fi
 else
+### Query not defined -- just dump all tables in for loop
     echo "tt"
 fi
 
