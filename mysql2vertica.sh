@@ -189,7 +189,7 @@ for vTable in "${tList[@]}"; do
     [[ "${verbose}" -eq "1" ]] && echo -ne "==  Process table ${vTable}\n"
     if [[ "${force}" -eq "1" ]]; then
         # If force is present, DROP and CREATE table
-        $vCmd -c "DROP TABLE openx.${vTable};"
+        $vCmd -c "DROP TABLE ${vdbDb}.${vTable};"
         cat tmp/${vTable}.sql.prep|$vCmd
         cat tmp/${vTable}.txt|pigz -5 -p 8|$vCmd -c "COPY ${vdbDb}.${vTable} FROM STDIN GZIP DELIMITER ',' NULL 'NULL' ENCLOSED BY '\"' REJECTED DATA '/home/dbadmin/rejected_${vTable}.log' EXCEPTIONS '/home/dbadmin/exceptions_${vTable}.log' DIRECT ;"
     else
