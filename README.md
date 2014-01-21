@@ -1,7 +1,7 @@
 mysql2vertica.sh
 ================
 Utility to copy tables from MySQL to HP Vertica using CSV files
----------------------------------------------------------------
+
 NOTE THAT YOU SHOULD HAVE RUN THIS SCRIPT ONLY ON VERTICA NODE
 ---------------------------------------------------------------
 
