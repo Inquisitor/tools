@@ -31,6 +31,8 @@ while [[ "$#" -gt "0" ]];
         esac
     done
 
+### If --help argument is present, just show help and exit
+
 if [[ "${showHelp}" -eq "1" ]]; then
 
 echo "Usage: mysql2vertica.sh <OPTIONS>"
@@ -54,6 +56,8 @@ echo "    -h,  --help                Show this help"
 exit 0;
 fi
 
+### Check if required arguments is present, if not - exit
+
 if [[ -z $myHost ]]; then echo "$0: --mysql-host should be defined"; exit 1; fi
 if [[ -z $myDb ]]; then  echo "$0: --mysql-database should be defined"; exit 1; fi
 if [[ -z $myUser ]]; then echo "$0: --mysql-user should be defined"; exit 1; fi
@@ -64,7 +68,39 @@ if [[ -z $vdbDb ]]; then echo "$0: --vertica-database should be defined"; exit 1
 if [[ -z $vdbUser ]]; then echo "$0: --vertica-user should be defined"; exit 1; fi
 if [[ -z $vdbPass ]]; then echo "$0: --vertica-password should be defined"; exit 1; fi
 
-echo "$myHost $myDb $myUser $myPass $myTable $vdbHost $vdbDb $vdbUser $vdbPass $force $verbose $whereClause "
+### Check if required utilities is installed
+if [[ ! -f "$(which pv)" ]]; then echo "$0: PipeViewer (pv) is not installed"; exit 2; fi
+if [[ ! -f "$(which psql)" ]]; then echo "$0: PostgreSQL client is not installed"; exit 2; fi
+if [[ ! -f "$(which mysql)" ]]; then echo "$0: MySQL client is not installed"; exit 2; fi
+if [[ ! -f "$(which mysqldump)" ]]; then echo "$0: MySQL-dump is not installed"; exit 2; fi
+
+### Convert table list to array
+tList=( `echo $myTable|tr ',' ' '` );
+[[ "$verbose" -eq 1 ]]; echo "${#tList[@]} table(s) provided to work..."
+
+### Check conflicted options
+if [[ -n "$whereClause" ]] && [[ "${#tList[@]}" -gt "1" ]]; then
+    echo "$0: You cannot use --query option with more than 1 table (${#tList[@]} tables used)"
+fi
+
+if [[ -n "$whereClause" ]] && [[ "$force" -eq "1" ]]; then
+    echo "$0: You cannot use --query option with --force"
+fi
+
+mkdir -p ./tmp >/dev/null 2>&1
+rm -rf ./tmp/* >/dev/null 2>&1
+chmod 777 ./tmp/* >/dev/null 2>&1
+
+### Start work
+[[ "$verbose" -eq 1 ]]; echo -ne "Start work at ($date "+%Y-%m-%d %H:%M:%S")\n\n";
+
+### Check if --query is defined
+if [[ -n "${whereClause}" ]]; then
+    echo "tq"
+else
+    echo "tt"
+fi
+
 
 exit 0;
 
