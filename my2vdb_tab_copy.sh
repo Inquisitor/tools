@@ -12,7 +12,6 @@ vdbDb="openx"
 vdbUser="dbadmin"
 vdbPass="YGtQaRSdGrVe1g"
 
-ncport="8867"
  #${sshCmd} ${myHost} sudo mkdir -p /root/tmp
  #${sshCmd} ${myHost} sudo rm -f /root/tmp/*
  #${sshCmd} ${myHost} sudo chown -R mysql:mysql /root/tmp
@@ -29,11 +28,9 @@ if [[ "$1" == "force" ]]; then
     echo "== DROP TABLE (with force arg)"
     echo -e "DROP TABLE IF EXISTS openx.${myTable} CASCADE;\n \i /home/dbadmin/tmp/${myTable}.sql.prep"|${sshCmd} ${vdbHost} /opt/vertica/bin/vsql -w${vdbPass} -d ${vdbDb} -U ${vdbUser}
 fi
-echo "== Listen on ${ncport} port on ${myHost}..."
-echo "cat /root/tmp/conversions.txt | pigz -4 -p 6 |nc -d -l ${ncport} &"|${sshCmd} ${myHost} sudo bash &
 xsize=$(echo ls -la /root/tmp/conversions.txt |awk '{ print $5 }'|${sshCmd} ${myHost} sudo bash)
 echo "== Piped COPY to VDB:"
-${sshCmd} ${myHost} sudo bash < ./nc.sh
+echo "cat /root/tmp/conversions.txt | pv -pterab -s ${xsize}| pigz -4 -p 6 | PGPASSWORD=${vdbPass} psql -w -d ${vdbDb} -U ${vdbUser} -p 5433 -h vdb1.propellerads.com -c \"BEGIN; DELETE FROM openx.conversions; COPY openx.conversions FROM STDIN GZIP DELIMITER ',' NULL 'NULL' ENCLOSED BY '\"' DIRECT;\"" | ${sshCmd} ${myHost} sudo bash
 
 
 
