@@ -96,6 +96,7 @@ if [[ -n "${whereClause}" ]] && [[ "${force}" -eq "1" ]]; then
     echo "$0: You cannot use --query option with --force"
 fi
 
+# Create temporary folder if not exists
 mkdir -p ./tmp >/dev/null 2>&1
 rm -rf ./tmp/* >/dev/null 2>&1
 chmod 777 ./tmp/* >/dev/null 2>&1
@@ -195,7 +196,11 @@ for vTable in "${tList[@]}"; do
         if [[ -n "${whereClause}" ]]; then
             cat tmp/${vTable}.txt|pigz -5 -p 8|$vCmd -c "BEGIN; DELETE FROM ${vdbDb}.${vTable} WHERE ${whereClause}; COPY ${vdbDb}.${vTable} FROM STDIN GZIP DELIMITER ',' NULL 'NULL' ENCLOSED BY '\"' DIRECT ;"
          else
-            cat tmp/${vTable}.txt|pigz -5 -p 8|$vCmd -c "BEGIN; DELETE FROM ${vdbDb}.${vTable}; COPY ${vdbDb}.${vTable} FROM STDIN GZIP DELIMITER ',' NULL 'NULL' ENCLOSED BY '\"' DIRECT ;"
+            if [[ "${verbose}" -eq "1" ]]; then
+                cat tmp/${vTable}.txt|pv -pterab -s `ls -lab tmp/conversions.txt |awk '{ print $5 }'`|pigz -5 -p 8|$vCmd -c "BEGIN; DELETE FROM ${vdbDb}.${vTable}; COPY ${vdbDb}.${vTable} FROM STDIN GZIP DELIMITER ',' NULL 'NULL' ENCLOSED BY '\"' DIRECT ;"
+            else
+                cat tmp/${vTable}.txt|pigz -5 -p 8|$vCmd -c "BEGIN; DELETE FROM ${vdbDb}.${vTable}; COPY ${vdbDb}.${vTable} FROM STDIN GZIP DELIMITER ',' NULL 'NULL' ENCLOSED BY '\"' DIRECT ;"
+            fi
          fi
     fi
 done
