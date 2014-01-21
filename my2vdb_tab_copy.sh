@@ -14,7 +14,8 @@
 #vdbUser="dbadmin"
 #vdbPass="YGtQaRSdGrVe1g"
 force=0
-debug=0
+verbose=0
+showHelp=0
 
 ### Parse command line arguments
 
@@ -30,10 +31,35 @@ while [[ "$#" -gt "0" ]];
             -vd | --vertica-database ) vdbDb="$2"; shift 2;;
             -vu | --vertica-user ) vdbUser="$2"; shift 2;;
             -vp | --vertica-password ) vdbPass="$2"; shift 2;;
+            -q | --query ) whereClause="$2"; shift 2;;
             -f | --force ) force=1; shift 1;;
             -v | --verbose ) verbose=1; shift 1;;
+            -h | --help ) showHelp=1; shift 1;;
         esac
     done
+
+if [[ "${showHelp}" -eq "1" ]]; then
+cat <<EOF
+Usage: mysql2vertica.sh <OPTIONS>
+This utility dump data from MySQL, prepare it and COPY to Vertica database
+    * - option is required
+
+    -mh, --mysql-host       * MySQL hostname
+    -md, --mysql-database   * MySQL database name
+    -mu, --mysql-user       * MySQL username
+    -mp, --mysql-password   * MySQL password
+    -mt, --mysql-tables     * Comma-separated table list. With --query you can set only one table
+    -vh, --vertica-host     * Vertica hostname
+    -vd, --vertica-database * Vertica database name
+    -vu, --vertica-user     * Vertica username
+    -vp, --vertica-password * Vertica password
+    -q,  --query               MySQL query for dump data (part after where), doesn't work with --force
+    -f,  --force               Drop and re-create table in Vertica before COPY data
+    -v,  --verbose             Be verbose
+    -h,  --help                Show this help
+EOF
+exit 0;
+fi
 
 if [[ -z $myHost ]]; then echo "$0: --mysql-host should be defined"; exit 1; fi
 if [[ -z $myDb ]]; then  echo "$0: --mysql-database should be defined"; exit 1; fi
@@ -45,7 +71,7 @@ if [[ -z $vdbDb ]]; then echo "$0: --vertica-database should be defined"; exit 1
 if [[ -z $vdbUser ]]; then echo "$0: --vertica-user should be defined"; exit 1; fi
 if [[ -z $vdbPass ]]; then echo "$0: --vertica-password should be defined"; exit 1; fi
 
-echo "$myHost $myDb $myUser $myPass $myTable $vdbHost $vdbDb $vdbUser $vdbPass $force $verbose "
+echo "$myHost $myDb $myUser $myPass $myTable $vdbHost $vdbDb $vdbUser $vdbPass $force $verbose $whereClause "
 
 exit 0;
 
