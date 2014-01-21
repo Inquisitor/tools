@@ -105,13 +105,11 @@ else
     exit 5
 fi
 
-
-    [[ "${verbose}" -eq "1" ]] && echo -ne "==  [MySQL] Execute SELECT INTO OUTFILE... "
 ### Check if --query is defined
 if [[ -n "${whereClause}" ]]; then
 ### If query is defined make dump using select into outfile
     [[ "${verbose}" -eq "1" ]] && echo -ne "==  [MySQL] Defined query: SELECT * FROM ${tList[@]} WHERE ${whereClause} \n"
-
+    [[ "${verbose}" -eq "1" ]] && echo -ne "==  [MySQL] Execute SELECT INTO OUTFILE... "
     mysql -nCB -N -h${myHost} -u${myUser} -p${myPass} -e "SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED; SELECT * FROM ${myTable} WHERE ${whereClause};" ${myDb} \
     | awk -F '\t' '{ for (i=0; ++i <= NF;) { if (i==NF) { printf "\"%s\"",$(i) } else { printf "\"%s\",",$(i) } }; printf "\n" }' > tmp/${myTable}.txt; mSelectRes=$?;
 
