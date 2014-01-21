@@ -1,8 +1,17 @@
 #!/bin/bash
 
 # mysql2vertica.sh      - Utility to copy tables from MySQL to HP Vertica using CSV files
-#                       It prepare data before copy to vertica-compatible format
+#                         It prepare data before copy to vertica-compatible format
+#                         NOTE THAT YOU SHOULD HAVE RUN THIS SCRIPT ONLY ON VERTICA NODE
+#   ################## DISCLAIMER ##################
+#   YOUR USE OF THIS SOFTWARE IS AT YOUR OWN RISK.
+#   NOBODY REPRESENT OR WARRANT THAT THE SOFTWARE
+#   PRODUCT WILL MEET YOUR REQUIREMENTS OR THAT ITS
+#   OPERATION WILL BE UNINTERRUPTED OR ERROR-FREE.
+#   ################################################
+#
 #   @author:    Andrew Yakovlev aka NOX
+#   @version:   1.0-beta
 #   @license:   GPLv3
 #   @copy:      Embria.ru (c) 2014
 
@@ -72,6 +81,7 @@ if [[ ! -f /opt/vertica/bin/vsql ]]; then echo "$0: Vertica SQL client is not in
 if [[ ! -f "$(which mysql)" ]]; then echo "$0: MySQL client is not installed"; exit 2; fi
 if [[ ! -f "$(which mysqldump)" ]]; then echo "$0: MySQL-dump is not installed"; exit 2; fi
 
+vCmd="/opt/vertica/bin/vsql -w${vdbPass} -U ${vdbUser} -d ${vdbDb} "
 
 ### Convert table list to array
 tList=( `echo ${myTable}|tr ',' ' '` );
@@ -148,7 +158,7 @@ for strFile in `ls -1 tmp/*.sql`; do
     [[ "${verbose}" -eq "1" ]] && echo -ne "=   [PREPARE] File: ${strFile}\t";
     cat ${strFile} |perl -pe 's/\S*int\(\d+\)/int/g' |sed -e "s/enum('t','f')/boolean/ig" -e 's/UNIQUE KEY/KEY/ig' -e 's/PRIMARY KEY/KEY/ig' -e 's/unsigned//g' -e 's/ text/ varchar(65000)/ig' -e 's/ double / float /ig' | perl -pe 's/CHARACTER SET \w+ //ig' | perl -pe 's/ enum\(\S+\) / varchar(16) /g' | grep -Fv '/*!' | grep -v '^DROP ' | perl -pe 's/ float(\S+)/ float/g' | perl -pe 's/COMMENT .*,\s*$/,/ig' | grep -v '^USE ' | grep -v '^\s*KEY ' | perl -pe 's/,\s*\n\);/);/gs' > ${strFile}.prep
     sed -i 's/"//g' ${strFile}.prep
-    sed -i 's/\(CREATE TABLE\) \([a-z_]*\)/\1 openx\.\2/' ${strFile}.prep
+    sed -i 's/\(CREATE TABLE\) \([a-z_]*\)/\1 '${vdbDb}'\.\2/' ${strFile}.prep
     sed -i 's/^--.*//' ${strFile}.prep
     sed -i "s/NOT NULL DEFAULT '0000-00-00'/DEFAULT NULL/" ${strFile}.prep
     sed -i "s/NOT NULL DEFAULT '0000-00-00 00:00:00'/DEFAULT NULL/" ${strFile}.prep
@@ -167,30 +177,26 @@ for strFile in `ls -1 tmp/*.sql`; do
     echo "OK"
 done
 
+[[ "${verbose}" -eq "1" ]] && echo -ne "==  Dumped data prepare\n";
+for txtFile in `ls -1 tmp/*.txt`; do
+    [[ "${verbose}" -eq "1" ]] && echo -ne "=   [PREPARE] File: ${txtFile}\t";
+    sed -i -e 's/"0000-00-00"/NULL/g' -e 's/"0000-00-00 00:00:00"/NULL/g' -e 's/\\N/NULL/g' ${txtFile}
+done
 
-
-exit 0;
-    #sed -i -e 's/"0000-00-00"/NULL/g' -e 's/"0000-00-00 00:00:00"/NULL/g' -e 's/\\N/NULL/g' /root/tmp/conversions.txt
- #${sshCmd} ${myHost} sudo mkdir -p /root/tmp
- #${sshCmd} ${myHost} sudo rm -f /root/tmp/*
- #${sshCmd} ${myHost} sudo chown -R mysql:mysql /root/tmp
- #echo "mysqldump --lock-tables=false --compatible=postgresql --fields-terminated-by=,  --fields-enclosed-by=\\\" --tab='/root/tmp' ${myDb} ${myTable}"|${sshCmd} ${myHost} sudo bash
-
-#${sshCmd} ${myHost} sudo bash < ./prepare.sh
-
-#${sshCmd} ${vdbHost} sudo chmod -R 777 /home/dbadmin/tmp/
-#scp -o PasswordAuthentication=no -o StrictHostKeyChecking=no ${myHost}:/root/tmp/*.prep ./
-#scp -o PasswordAuthentication=no -o StrictHostKeyChecking=no ./*.prep ${vdbHost}:/home/dbadmin/tmp/
-#${sshCmd} ${vdbHost} sudo chmod -R 777 /home/dbadmin/tmp/
-
-#if [[ "$1" == "force" ]]; then
-#    echo "== DROP TABLE (with force arg)"
-#    echo -e "DROP TABLE IF EXISTS openx.${myTable} CASCADE;\n \i /home/dbadmin/tmp/${myTable}.sql.prep"|${sshCmd} ${vdbHost} /opt/vertica/bin/vsql -w${vdbPass} -d ${vdbDb} -U ${vdbUser}
-#fi
-#xsize=$(echo ls -la /root/tmp/conversions.txt |awk '{ print $5 }'|${sshCmd} ${myHost} sudo bash)
-#echo "== Piped COPY to VDB:"
-#echo "cat /root/tmp/conversions.txt | pv -pterab -s ${xsize}| pigz -4 -p 6 | PGPASSWORD=${vdbPass} psql -w -d ${vdbDb} -U ${vdbUser} -p 5433 -h vdb1.propellerads.com -c \"BEGIN; DELETE FROM openx.conversions; COPY openx.conversions FROM STDIN GZIP DELIMITER ',' NULL 'NULL' ENCLOSED BY '\"' DIRECT;\"" | ${sshCmd} ${myHost} sudo bash
-
-
-
-
+[[ "${verbose}" -eq "1" ]] && echo -ne "=== Start COPY to HP Vertica\n"
+for vTable in "${tList[@]}"; do
+    [[ "${verbose}" -eq "1" ]] && echo -ne "==  Process table ${vTable}\n"
+    if [[ "${force}" -eq "1" ]]; then
+        # If force is present, DROP and CREATE table
+        $vCmd -c "DROP TABLE openx.${vTable};"
+        cat tmp/${vTable}.sql.prep|$vCmd
+        cat tmp/${vTable}.txt|pigz -5 -p 8|$vCmd -c "COPY ${vdbDb}.${vTable} FROM STDIN GZIP DELIMITER ',' NULL 'NULL' ENCLOSED BY '\"' REJECTED DATA '/home/dbadmin/rejected_${vTable}.log' EXCEPTIONS '/home/dbadmin/exceptions_${vTable}.log' DIRECT ;"
+    else
+        if [[ -n "${whereClause}" ]]; then
+            cat tmp/${vTable}.txt|pigz -5 -p 8|$vCmd -c "BEGIN; DELETE FROM ${vdbDb}.${vTable} WHERE ${whereClause}; COPY ${vdbDb}.${vTable} FROM STDIN GZIP DELIMITER ',' NULL 'NULL' ENCLOSED BY '\"' DIRECT ;"
+         else
+            cat tmp/${vTable}.txt|pigz -5 -p 8|$vCmd -c "BEGIN; DELETE FROM ${vdbDb}.${vTable}; COPY ${vdbDb}.${vTable} FROM STDIN GZIP DELIMITER ',' NULL 'NULL' ENCLOSED BY '\"' DIRECT ;"
+         fi
+    fi
+done
+[[ "${verbose}" -eq 1 ]] &&  echo -ne "\n\nFinish work at $(date '+%Y-%m-%d %H:%M:%S')\n\n";
