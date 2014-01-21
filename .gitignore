@@ -1,3 +1,4 @@
 *.idea/*
 *.prep
+*tmp/*
 
