@@ -1,14 +1,9 @@
-tools
-=====
-
-Admin tools like scripts, utilities etc
-
 mysql2vertica.sh
-------------------
-_Utility to copy tables from MySQL to HP Vertica using CSV files_
-
-_NOTE THAT YOU SHOULD HAVE RUN THIS SCRIPT ONLY ON VERTICA NODE_
-
+================
+Utility to copy tables from MySQL to HP Vertica using CSV files
+---------------------------------------------------------------
+NOTE THAT YOU SHOULD HAVE RUN THIS SCRIPT ONLY ON VERTICA NODE
+---------------------------------------------------------------
 
     Usage: mysql2vertica.sh <OPTIONS>
 
