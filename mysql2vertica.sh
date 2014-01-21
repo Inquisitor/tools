@@ -68,7 +68,7 @@ if [[ -z $vdbPass ]]; then echo "$0: --vertica-password should be defined"; exit
 
 ### Check if required utilities is installed
 if [[ ! -f "$(which pv)" ]]; then echo "$0: PipeViewer (pv) is not installed"; exit 2; fi
-if [[ ! -f "$(which vsql)" ]]; then echo "$0: Vertica SQL client is not installed"; exit 2; fi
+if [[ ! -f /opt/vertica/bin/vsql ]]; then echo "$0: Vertica SQL client is not installed"; exit 2; fi
 if [[ ! -f "$(which mysql)" ]]; then echo "$0: MySQL client is not installed"; exit 2; fi
 if [[ ! -f "$(which mysqldump)" ]]; then echo "$0: MySQL-dump is not installed"; exit 2; fi
 
