@@ -72,6 +72,7 @@ if [[ ! -f /opt/vertica/bin/vsql ]]; then echo "$0: Vertica SQL client is not in
 if [[ ! -f "$(which mysql)" ]]; then echo "$0: MySQL client is not installed"; exit 2; fi
 if [[ ! -f "$(which mysqldump)" ]]; then echo "$0: MySQL-dump is not installed"; exit 2; fi
 
+
 ### Convert table list to array
 tList=( `echo $myTable|tr ',' ' '` );
 [[ "$verbose" -eq 1 ]] && echo "${#tList[@]} table(s) provided to work..."
