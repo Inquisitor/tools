@@ -143,11 +143,36 @@ else
         fi
     done
 fi
+[[ "${verbose}" -eq "1" ]] && echo -ne "=== Start prepare data\n";
+[[ "${verbose}" -eq "1" ]] && echo -ne "==  Structures prepare\n";
+
+for strFile in `ls -1 tmp/*.sql`; do
+    [[ "${verbose}" -eq "1" ]] && echo -ne "=   [PREPARE] File: ${strFile}\t";
+    cat ${strFile} |perl -pe 's/\S*int\(\d+\)/int/g' |sed -e "s/enum('t','f')/boolean/ig" -e 's/UNIQUE KEY/KEY/ig' -e 's/PRIMARY KEY/KEY/ig' -e 's/unsigned//g' -e 's/ text/ varchar(65000)/ig' -e 's/ double / float /ig' | perl -pe 's/CHARACTER SET \w+ //ig' | perl -pe 's/ enum\(\S+\) / varchar(16) /g' | grep -Fv '/*!' | grep -v '^DROP ' | perl -pe 's/ float(\S+)/ float/g' | perl -pe 's/COMMENT .*,\s*$/,/ig' | grep -v '^USE ' | grep -v '^\s*KEY ' | perl -pe 's/,\s*\n\);/);/gs' > ${strFile}.prep
+    sed -i 's/"//g' ${strFile}.prep
+    sed -i 's/\(CREATE TABLE\) \([a-z_]*\)/\1 openx\.\2/' ${strFile}.prep
+    sed -i 's/^--.*//' ${strFile}.prep
+    sed -i "s/NOT NULL DEFAULT '0000-00-00'/DEFAULT NULL/" ${strFile}.prep
+    sed -i "s/NOT NULL DEFAULT '0000-00-00 00:00:00'/DEFAULT NULL/" ${strFile}.prep
+    sed -i "s/date DEFAULT '0000-00-00'/date DEFAULT NULL/ig" ${strFile}.prep
+    sed -i "s/date NOT NULL/date DEFAULT NULL/g" ${strFile}.prep
+    sed -i "s/ KEY.*//" ${strFile}.prep
+    sed -i '/^$/d' ${strFile}.prep
+    sed -i '/^ *$/d' ${strFile}.prep
+    sed -i "N;/)\;/s/,\n/\n/;P;D;" ${strFile}.prep
+    sed -i "s/unique int  NOT NULL/\"unique\" int  NOT NULL/" ${strFile}.prep
+    sed -i -e "s/desc varchar(65000) NOT NULL/\"desc\" varchar(65000) NOT NULL/" -e "s/double(8,4)/DOUBLE PRECISION/g" ${strFile}.prep
+    sed -i "s/ enum('new','accepted','in discussion','exist','declined by us','refused by adv','active','disappeared','pending')/ VARCHAR(20)/g" ${strFile}.prep
+    sed -i "s/datetime NOT NULL/datetime DEFAULT NULL/g" ${strFile}.prep
+    sed -i "s/timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP/timestamp DEFAULT CURRENT_TIMESTAMP/g" ${strFile}.prep
+    sed -i "s/ bit(1)/ BINARY/g" ${strFile}.prep
+    echo "OK"
+done
 
 
 
 exit 0;
-
+    #sed -i -e 's/"0000-00-00"/NULL/g' -e 's/"0000-00-00 00:00:00"/NULL/g' -e 's/\\N/NULL/g' /root/tmp/conversions.txt
  #${sshCmd} ${myHost} sudo mkdir -p /root/tmp
  #${sshCmd} ${myHost} sudo rm -f /root/tmp/*
  #${sshCmd} ${myHost} sudo chown -R mysql:mysql /root/tmp
