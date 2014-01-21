@@ -39,25 +39,25 @@ while [[ "$#" -gt "0" ]];
     done
 
 if [[ "${showHelp}" -eq "1" ]]; then
-cat <<EOF
-Usage: mysql2vertica.sh <OPTIONS>
-This utility dump data from MySQL, prepare it and COPY to Vertica database
-    * - option is required
 
-    -mh, --mysql-host       * MySQL hostname
-    -md, --mysql-database   * MySQL database name
-    -mu, --mysql-user       * MySQL username
-    -mp, --mysql-password   * MySQL password
-    -mt, --mysql-tables     * Comma-separated table list. With --query you can set only one table
-    -vh, --vertica-host     * Vertica hostname
-    -vd, --vertica-database * Vertica database name
-    -vu, --vertica-user     * Vertica username
-    -vp, --vertica-password * Vertica password
-    -q,  --query               MySQL query for dump data (part after where), doesn't work with --force
-    -f,  --force               Drop and re-create table in Vertica before COPY data
-    -v,  --verbose             Be verbose
-    -h,  --help                Show this help
-EOF
+echo "Usage: mysql2vertica.sh <OPTIONS>"
+echo "This utility dump data from MySQL, prepare it and COPY to Vertica database"
+echo "    * - option is required"
+echo ""
+echo "    -mh, --mysql-host       * MySQL hostname"
+echo "    -md, --mysql-database   * MySQL database name"
+echo "    -mu, --mysql-user       * MySQL username"
+echo "    -mp, --mysql-password   * MySQL password"
+echo "    -mt, --mysql-tables     * Comma-separated table list. With --query you can set only one table"
+echo "    -vh, --vertica-host     * Vertica hostname"
+echo "    -vd, --vertica-database * Vertica database name"
+echo "    -vu, --vertica-user     * Vertica username"
+echo "    -vp, --vertica-password * Vertica password"
+echo "    -q,  --query               MySQL query for dump data (part after where), doesn't work with --force"
+echo "    -f,  --force               Drop and re-create table in Vertica before COPY data"
+echo "    -v,  --verbose             Be verbose"
+echo "    -h,  --help                Show this help"
+
 exit 0;
 fi
 
