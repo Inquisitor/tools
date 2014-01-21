@@ -105,11 +105,12 @@ else
     exit 5
 fi
 
+
+    [[ "$verbose" -eq "1" ]] && echo -ne "==  [MySQL] Execute SELECT INTO OUTFILE... "
 ### Check if --query is defined
 if [[ -n "${whereClause}" ]]; then
 ### If query is defined make dump using select into outfile
-    [[ "$verbose" -eq "1" ]] && echo -ne "==  Defined query: SELECT * FROM ${tList[@]} WHERE ${whereClause} \n"
-    [[ "$verbose" -eq "1" ]] && echo -ne "==  MySQL SELECT INTO OUTFILE... "
+    [[ "$verbose" -eq "1" ]] && echo -ne "==  [MySQL] Defined query: SELECT * FROM ${tList[@]} WHERE ${whereClause} \n"
     mysql -nCB -N -h${myHost} -u${myUser} -p${myPass} -e "SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED; SELECT * FROM ${myTable} WHERE ${whereClause};" ${myDb}|awk -F '\t' '{ for (i=0; ++i <= NF;) { if (i==NF) { printf "\"%s\"",$(i) } else { printf "\"%s\",",$(i) } }; printf "\n" }' > tmp/${myTable}.txt; mSelectRes=$?;
     tDumpLines=$(cat tmp/${myTable}.txt 2>/dev/null|wc -l 2>/dev/null)
     tBytes=$(ls -lab tmp/${myTable}.txt 2>/dev/null|awk '{print $5}' 2>/dev/null)
@@ -122,8 +123,21 @@ if [[ -n "${whereClause}" ]]; then
     fi
 else
 ### Query not defined -- just dump all tables in for loop
-    echo "tt"
+    for tDump in "${tList[@]}"; do
+        [[ "$verbose" -eq "1" ]] && echo -ne "=   [MySQL] Dump table ${tDump}... "
+        mysql -nCB -N -h${myHost} -u${myUser} -p${myPass} -e "SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED; SELECT * FROM ${tDump};" ${myDb}|awk -F '\t' '{ for (i=0; ++i <= NF;) { if (i==NF) { printf "\"%s\"",$(i) } else { printf "\"%s\",",$(i) } }; printf "\n" }' > tmp/${tDump}.txt; mSelectRes=$?;
+        tDumpLines=$(cat tmp/${tDump}.txt 2>/dev/null|wc -l 2>/dev/null)
+        tBytes=$(ls -lab tmp/${tDump}.txt 2>/dev/null|awk '{print $5}' 2>/dev/null)
+        tBytesH=$(ls -lah tmp/${tDump}.txt 2>/dev/null|awk '{print $5}' 2>/dev/null)
+        if [[ "${mSelectRes}" -eq "0" ]]; then
+            [[ "$verbose" -eq "1" ]] && echo -ne "OK: ${tDumpLines} lines (${tBytesH}) has been dumped\n"
+        else
+            echo -ne "FAIL: mysql exited with code ${mSelectRes}\n\nI'm died :(\n"
+            exit 5
+        fi
+    done
 fi
+
 
 
 exit 0;
