@@ -110,7 +110,7 @@ chmod 777 ./tmp/* >/dev/null 2>&1
 mysqldump -h${myHost} -u${myUser} -p${myPass} --lock-tables=false --no-data ${myDb} ${tList[@]} --tab='./tmp' 2>/dev/null; mDumpRes=$?;
 tStructCount=$(ls -1 tmp/*.sql 2>/dev/null|wc -l)
 if [[ "${mDumpRes}" -eq "0" ]]; then
-    [[ "${verbose}" -eq "1" ]] && echo "OK: ${tStructCount} structures dumped"
+    [[ "${verbose}" -eq "1" ]] && echo "OK: ${tStructCount} structure(s) has been dumped"
 else
     echo -ne "FAIL: mysqldump exited with code ${mDumpRes}\n\nI'm died :(\n"
     exit 5
@@ -197,7 +197,7 @@ for vTable in "${tList[@]}"; do
             cat tmp/${vTable}.txt|pigz -5 -p 8|$vCmd -c "BEGIN; DELETE FROM ${vdbDb}.${vTable} WHERE ${whereClause}; COPY ${vdbDb}.${vTable} FROM STDIN GZIP DELIMITER ',' NULL 'NULL' ENCLOSED BY '\"' DIRECT ;"
          else
             if [[ "${verbose}" -eq "1" ]]; then
-                cat tmp/${vTable}.txt|pv -pterab -s `ls -lab tmp/conversions.txt |awk '{ print $5 }'`|pigz -5 -p 8|$vCmd -c "BEGIN; DELETE FROM ${vdbDb}.${vTable}; COPY ${vdbDb}.${vTable} FROM STDIN GZIP DELIMITER ',' NULL 'NULL' ENCLOSED BY '\"' DIRECT ;"
+                cat tmp/${vTable}.txt|pv -pterab -s `du -sm tmp/${vTable}.txt |awk '{print $1*1024*1024}'`|pigz -5 -p 8|$vCmd -c "BEGIN; DELETE FROM ${vdbDb}.${vTable}; COPY ${vdbDb}.${vTable} FROM STDIN GZIP DELIMITER ',' NULL 'NULL' ENCLOSED BY '\"' DIRECT ;"
             else
                 cat tmp/${vTable}.txt|pigz -5 -p 8|$vCmd -c "BEGIN; DELETE FROM ${vdbDb}.${vTable}; COPY ${vdbDb}.${vTable} FROM STDIN GZIP DELIMITER ',' NULL 'NULL' ENCLOSED BY '\"' DIRECT ;"
             fi
@@ -205,3 +205,5 @@ for vTable in "${tList[@]}"; do
     fi
 done
 [[ "${verbose}" -eq 1 ]] &&  echo -ne "\n\nFinish work at $(date '+%Y-%m-%d %H:%M:%S')\n\n";
+
+
