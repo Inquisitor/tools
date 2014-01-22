@@ -11,7 +11,7 @@
 #   ################################################
 #
 #   @author:    Andrew Yakovlev aka NOX
-#   @version:   1.0-beta
+#   @version:   1.2.0
 #   @license:   GPLv3
 #   @copy:      Embria.ru (c) 2014
 
@@ -20,6 +20,21 @@ verbose=0
 showHelp=0
 
 ### Parse command line arguments
+
+function stepTime()
+{
+    case "$1" in
+        start)
+            stepStart=$(date +%s)
+        ;;
+        end)
+            stepFinish=$(date +%s)
+            stepTime=$(expr ${stepFinish} - ${stepStart})
+            stepTotal=$(date -u -d @${stepTime} +%H:%M:%S)
+            echo ${stepTotal}
+        ;;
+    esac
+}
 
 while [[ "$#" -gt "0" ]];
     do
@@ -107,10 +122,12 @@ chmod 777 ./tmp/* >/dev/null 2>&1
 ### MySQL part -> dump table structure
 [[ "${verbose}" -eq "1" ]] && echo -ne "=== Start DUMP data from MySQL\n";
 [[ "${verbose}" -eq "1" ]] && echo -ne "==  Execute mysqldump for tables structure... "
+stepTime 'start'
 mysqldump -h${myHost} -u${myUser} -p${myPass} --lock-tables=false --no-data ${myDb} ${tList[@]} --tab='./tmp' 2>/dev/null; mDumpRes=$?;
 tStructCount=$(ls -1 tmp/*.sql 2>/dev/null|wc -l)
+timeof="$(stepTime 'end')"
 if [[ "${mDumpRes}" -eq "0" ]]; then
-    [[ "${verbose}" -eq "1" ]] && echo "OK: ${tStructCount} structure(s) has been dumped"
+    [[ "${verbose}" -eq "1" ]] && echo "OK: ${tStructCount} structure(s) has been dumped. Elapsed time - ${timeof}"
 else
     echo -ne "FAIL: mysqldump exited with code ${mDumpRes}\n\nI'm died :(\n"
     exit 5
@@ -121,14 +138,18 @@ if [[ -n "${whereClause}" ]]; then
 ### If query is defined make dump using select into outfile
     [[ "${verbose}" -eq "1" ]] && echo -ne "==  [MySQL] Defined query: SELECT * FROM ${tList[@]} WHERE ${whereClause} \n"
     [[ "${verbose}" -eq "1" ]] && echo -ne "==  [MySQL] Execute SELECT INTO OUTFILE... "
+    stepTime 'start'
     mysql -nCB -N -h${myHost} -u${myUser} -p${myPass} -e "SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED; SELECT * FROM ${myTable} WHERE ${whereClause};" ${myDb} \
     | awk -F '\t' '{ for (i=0; ++i <= NF;) { if (i==NF) { printf "\"%s\"",$(i) } else { printf "\"%s\",",$(i) } }; printf "\n" }' > tmp/${myTable}.txt; mSelectRes=$?;
 
     tDumpLines=$(cat tmp/${myTable}.txt 2>/dev/null|wc -l 2>/dev/null)
     tBytes=$(ls -lab tmp/${myTable}.txt 2>/dev/null|awk '{print $5}' 2>/dev/null)
     tBytesH=$(ls -lah tmp/${myTable}.txt 2>/dev/null|awk '{print $5}' 2>/dev/null)
+    
+    timeof="$(stepTime 'end')"
+     
     if [[ "${mSelectRes}" -eq "0" ]]; then
-        [[ "${verbose}" -eq "1" ]] && echo -ne "OK: ${tDumpLines} lines (${tBytesH}) has been dumped\n"
+        [[ "${verbose}" -eq "1" ]] && echo -ne "OK: ${tDumpLines} lines (${tBytesH}) has been dumped. Elapsed time - ${timeof}$\n"
     else
         echo -ne "FAIL: mysql exited with code ${mSelectRes}\n\nI'm died :(\n"
         exit 5
@@ -137,6 +158,7 @@ else
 ### Query not defined -- just dump all tables in for loop
     for tDump in "${tList[@]}"; do
         [[ "${verbose}" -eq "1" ]] && echo -ne "=   [MySQL] Dump table ${tDump}... "
+        stepTime 'start'
         mysql -nCB -N -h${myHost} -u${myUser} -p${myPass} -e "SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED; SELECT * FROM ${tDump};" ${myDb} \
         |awk -F '\t' '{ for (i=0; ++i <= NF;) { if (i==NF) { printf "\"%s\"",$(i) } else { printf "\"%s\",",$(i) } }; printf "\n" }' > tmp/${tDump}.txt; mSelectRes=$?;
 
@@ -144,8 +166,10 @@ else
         tBytes=$(ls -lab tmp/${tDump}.txt 2>/dev/null|awk '{print $5}' 2>/dev/null)
         tBytesH=$(ls -lah tmp/${tDump}.txt 2>/dev/null|awk '{print $5}' 2>/dev/null)
 
+        timeof="$(stepTime 'end')"
+
         if [[ "${mSelectRes}" -eq "0" ]]; then
-            [[ "${verbose}" -eq "1" ]] && echo -ne "OK: ${tDumpLines} lines (${tBytesH}) has been dumped\n"
+            [[ "${verbose}" -eq "1" ]] && echo -ne "OK: ${tDumpLines} lines (${tBytesH}) has been dumped. Elapsed time - ${timeof}\n"
         else
             echo -ne "FAIL: mysql exited with code ${mSelectRes}\n\nI'm died :(\n"
             exit 5
@@ -154,6 +178,8 @@ else
 fi
 [[ "${verbose}" -eq "1" ]] && echo -ne "=== Start prepare data\n";
 [[ "${verbose}" -eq "1" ]] && echo -ne "==  Structures prepare\n";
+
+stepTime 'start'
 
 for strFile in `ls -1 tmp/*.sql`; do
     [[ "${verbose}" -eq "1" ]] && echo -ne "=   [PREPARE] File: ${strFile}\t";
@@ -175,18 +201,25 @@ for strFile in `ls -1 tmp/*.sql`; do
     sed -i "s/datetime NOT NULL/datetime DEFAULT NULL/g" ${strFile}.prep
     sed -i "s/timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP/timestamp DEFAULT CURRENT_TIMESTAMP/g" ${strFile}.prep
     sed -i "s/ bit(1)/ BINARY/g" ${strFile}.prep
-    echo "OK"
 done
+
+timeof="$(stepTime 'end')"
+[[ "${verbose}" -eq "1" ]] && echo "OK. Elapsed time - ${timeof}"
+
 
 [[ "${verbose}" -eq "1" ]] && echo -ne "==  Dumped data prepare\n";
 for txtFile in `ls -1 tmp/*.txt`; do
-    [[ "${verbose}" -eq "1" ]] && echo -ne "=   [PREPARE] File: ${txtFile}\n";
+    stepTime 'start'
+    [[ "${verbose}" -eq "1" ]] && echo -ne "=   [PREPARE] File: ${txtFile}... ";
     sed -i -e 's/"0000-00-00"/NULL/g' -e 's/"0000-00-00 00:00:00"/NULL/g' -e 's/\\N/NULL/g' ${txtFile}
+    timeof="$(stepTime 'end')"
+    [[ "${verbose}" -eq "1" ]] && echo "OK. Elapsed time - ${timeof}"
 done
 
 [[ "${verbose}" -eq "1" ]] && echo -ne "=== Start COPY to HP Vertica\n"
 for vTable in "${tList[@]}"; do
-    [[ "${verbose}" -eq "1" ]] && echo -ne "==  Process table ${vTable}\n"
+    stepTime 'start'
+    [[ "${verbose}" -eq "1" ]] && echo -ne "==  Process table ${vTable}...\n"
     if [[ "${force}" -eq "1" ]]; then
         # If force is present, DROP and CREATE table
         $vCmd -c "DROP TABLE ${vdbDb}.${vTable};"
@@ -203,6 +236,8 @@ for vTable in "${tList[@]}"; do
             fi
          fi
     fi
+    timeof="$(stepTime 'end')"
+    [[ "${verbose}" -eq "1" ]] && echo "DONE. Elapsed time - ${timeof}"
 done
 [[ "${verbose}" -eq 1 ]] &&  echo -ne "\n\nFinish work at $(date '+%Y-%m-%d %H:%M:%S')\n\n";
 
