@@ -55,7 +55,7 @@ _NOTE THAT YOU SHOULD HAVE RUN THIS SCRIPT ONLY ON VERTICA NODE_
 
 cnv_transfer.sh
 -----------------
-_Utility to incremental inster (from last id) and update feature, made with delete and copy from vertica_
+_Utility to incremental instert (from last id) and update feature, made with delete and copy from vertica_
 
 vhealth
 ----------------
