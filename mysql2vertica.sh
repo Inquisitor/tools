@@ -11,13 +11,15 @@
 #   ################################################
 #
 #   @author:    Andrew Yakovlev aka NOX
-#   @version:   1.2.0
+#   @version:   1.2.5
 #   @license:   GPLv3
 #   @copy:      Embria.ru (c) 2014
 
 force=0
 verbose=0
 showHelp=0
+progress=0
+keep=0
 
 ### Parse command line arguments
 
@@ -48,8 +50,10 @@ while [[ "$#" -gt "0" ]];
             -vd | --vertica-database ) vdbDb="$2"; shift 2;;
             -vu | --vertica-user ) vdbUser="$2"; shift 2;;
             -vp | --vertica-password ) vdbPass="$2"; shift 2;;
+            -p | --progress ) progress=1; shift 1;;
             -q | --query ) whereClause="$2"; shift 2;;
             -f | --force ) force=1; shift 1;;
+            -k | --keep  ) keep=1; shift 1;;
             -v | --verbose ) verbose=1; shift 1;;
             -h | --help ) showHelp=1; shift 1;;
         esac
@@ -73,6 +77,7 @@ echo "    -vu, --vertica-user     * Vertica username"
 echo "    -vp, --vertica-password * Vertica password"
 echo "    -q,  --query              MySQL query for dump data (part after where), doesn't work with --force"
 echo "    -f,  --force              Drop and re-create table in Vertica before COPY data"
+echo "    -k,  --keep               Keep data in HP Vertica"
 echo "    -v,  --verbose            Be verbose"
 echo "    -h,  --help               Show this help"
 
@@ -113,7 +118,7 @@ fi
 
 # Create temporary folder if not exists
 mkdir -p ./tmp >/dev/null 2>&1
-rm -rf ./tmp/* >/dev/null 2>&1
+#rm -rf ./tmp/* >/dev/null 2>&1
 chmod 777 ./tmp/* >/dev/null 2>&1
 
 ### Start work
@@ -137,10 +142,12 @@ fi
 if [[ -n "${whereClause}" ]]; then
 ### If query is defined make dump using select into outfile
     [[ "${verbose}" -eq "1" ]] && echo -ne "==  [MySQL] Defined query: SELECT * FROM ${tList[@]} WHERE ${whereClause} \n"
-    [[ "${verbose}" -eq "1" ]] && echo -ne "==  [MySQL] Execute SELECT INTO OUTFILE... "
+    [[ "${verbose}" -eq "1" ]] && echo -ne "==  [MySQL] Execute SELECT INTO OUTFILE... \n"
     stepTime 'start'
     mysql -nCB -N -h${myHost} -u${myUser} -p${myPass} -e "SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED; SELECT * FROM ${myTable} WHERE ${whereClause};" ${myDb} \
-    | awk -F '\t' '{ for (i=0; ++i <= NF;) { if (i==NF) { printf "\"%s\"",$(i) } else { printf "\"%s\",",$(i) } }; printf "\n" }' > tmp/${myTable}.txt; mSelectRes=$?;
+    |sed "s/\"/'/g"| awk -F '\t' '{ for (i=0; ++i <= NF;) { if (i==NF) { printf "\"%s\"",$(i) } else { printf "\"%s\",",$(i) } }; printf "\n" }' \
+    |sed -e 's/"0000-00-00"/NULL/g' -e 's/"0000-00-00 00:00:00"/NULL/g' -e 's/\\N/NULL/g' -e 's/"NULL"/NULL/g'|pv -trbf > tmp/${myTable}.txt; mSelectRes=$?;
+
 
     tDumpLines=$(cat tmp/${myTable}.txt 2>/dev/null|wc -l 2>/dev/null)
     tBytes=$(ls -lab tmp/${myTable}.txt 2>/dev/null|awk '{print $5}' 2>/dev/null)
@@ -149,7 +156,7 @@ if [[ -n "${whereClause}" ]]; then
     timeof="$(stepTime 'end')"
      
     if [[ "${mSelectRes}" -eq "0" ]]; then
-        [[ "${verbose}" -eq "1" ]] && echo -ne "OK: ${tDumpLines} lines (${tBytesH}) has been dumped. Elapsed time - ${timeof}$\n"
+        [[ "${verbose}" -eq "1" ]] && echo -ne "OK: ${tDumpLines} lines (${tBytesH}) has been dumped. Elapsed time - ${timeof}\n"
     else
         echo -ne "FAIL: mysql exited with code ${mSelectRes}\n\nI'm died :(\n"
         exit 5
@@ -157,10 +164,12 @@ if [[ -n "${whereClause}" ]]; then
 else
 ### Query not defined -- just dump all tables in for loop
     for tDump in "${tList[@]}"; do
-        [[ "${verbose}" -eq "1" ]] && echo -ne "=   [MySQL] Dump table ${tDump}... "
+	rm -f ./tmp/${tDump}* >/dev/null 2>&1
+        [[ "${verbose}" -eq "1" ]] && echo -ne "=   [MySQL] Dump table ${tDump}... \n"
         stepTime 'start'
         mysql -nCB -N -h${myHost} -u${myUser} -p${myPass} -e "SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED; SELECT * FROM ${tDump};" ${myDb} \
-        |awk -F '\t' '{ for (i=0; ++i <= NF;) { if (i==NF) { printf "\"%s\"",$(i) } else { printf "\"%s\",",$(i) } }; printf "\n" }' > tmp/${tDump}.txt; mSelectRes=$?;
+    	|sed "s/\"/'/g"| awk -F '\t' '{ for (i=0; ++i <= NF;) { if (i==NF) { printf "\"%s\"",$(i) } else { printf "\"%s\",",$(i) } }; printf "\n" }' \
+    	|sed -e 's/"0000-00-00"/NULL/g' -e 's/"0000-00-00 00:00:00"/NULL/g' -e 's/\\N/NULL/g' -e 's/"NULL"/NULL/g'|pv -trbf > tmp/${myTable}.txt; mSelectRes=$?;
 
         tDumpLines=$(cat tmp/${tDump}.txt 2>/dev/null|wc -l 2>/dev/null)
         tBytes=$(ls -lab tmp/${tDump}.txt 2>/dev/null|awk '{print $5}' 2>/dev/null)
@@ -182,8 +191,9 @@ fi
 stepTime 'start'
 
 for strFile in `ls -1 tmp/*.sql`; do
-    [[ "${verbose}" -eq "1" ]] && echo -ne "=   [PREPARE] File: ${strFile}\t";
-    cat ${strFile} |perl -pe 's/\S*int\(\d+\)/int/g' |sed -e "s/enum('t','f')/boolean/ig" -e 's/UNIQUE KEY/KEY/ig' -e 's/PRIMARY KEY/KEY/ig' -e 's/unsigned//g' -e 's/ text/ varchar(65000)/ig' -e 's/ double / float /ig' | perl -pe 's/CHARACTER SET \w+ //ig' | perl -pe 's/ enum\(\S+\) / varchar(16) /g' | grep -Fv '/*!' | grep -v '^DROP ' | perl -pe 's/ float(\S+)/ float/g' | perl -pe 's/COMMENT .*,\s*$/,/ig' | grep -v '^USE ' | grep -v '^\s*KEY ' | perl -pe 's/,\s*\n\);/);/gs' > ${strFile}.prep
+    [[ "${verbose}" -eq "1" ]] && echo -ne "=   [PREPARE] File: ${strFile}\n";
+    cat ${strFile} |perl -pe 's/\S*int\(\d+\)/int/g' |sed -e "s/enum('t','f')/boolean/ig" -e 's/UNIQUE KEY/KEY/ig' -e 's/PRIMARY KEY/KEY/ig' -e 's/unsigned//g' -e 's/ text/ varchar(65000)/ig' -e 's/ double / float /ig' | perl -pe 's/CHARACTER SET \w+ //ig' | perl -pe 's/ enum\(\S+\) / varchar(16) /g' | grep -Fv '/*!' | grep -v '^DROP ' | perl -pe 's/ float(\S+)/ float/g' | perl -pe 's/COMMENT .*,\s*$/,/ig' | grep -v '^USE ' | grep -v '^\s*KEY ' | perl -pe 's/,\s*\n\);/);/gs'|pv -trbf > ${strFile}.prep
+    [[ "${verbose}" -eq "1" ]] && echo -ne "=   [PREPARE] Sed on ${strFile}\n";
     sed -i 's/"//g' ${strFile}.prep
     sed -i 's/\(CREATE TABLE\) \([a-z_]*\)/\1 '${vdbDb}'\.\2/' ${strFile}.prep
     sed -i 's/^--.*//' ${strFile}.prep
@@ -201,6 +211,9 @@ for strFile in `ls -1 tmp/*.sql`; do
     sed -i "s/datetime NOT NULL/datetime DEFAULT NULL/g" ${strFile}.prep
     sed -i "s/timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP/timestamp DEFAULT CURRENT_TIMESTAMP/g" ${strFile}.prep
     sed -i "s/ bit(1)/ BINARY/g" ${strFile}.prep
+	sed -e "s/\`//g" -e "s/\(^)\) \(ENGINE.*\)\(;\)/\1\3/" -i ${strFile}.prep
+	sed -i "N;/)\;/s/,\n/\n/;P;D;" ${strFile}.prep
+	sed -i "s/AUTO_INCREMENT//g" ${strFile}.prep
 done
 
 timeof="$(stepTime 'end')"
@@ -211,7 +224,7 @@ timeof="$(stepTime 'end')"
 for txtFile in `ls -1 tmp/*.txt`; do
     stepTime 'start'
     [[ "${verbose}" -eq "1" ]] && echo -ne "=   [PREPARE] File: ${txtFile}... ";
-    sed -i -e 's/"0000-00-00"/NULL/g' -e 's/"0000-00-00 00:00:00"/NULL/g' -e 's/\\N/NULL/g' ${txtFile}
+    sed -i -e 's/"0000-00-00"/NULL/g' -e 's/"0000-00-00 00:00:00"/NULL/g' -e 's/\\N/NULL/g' -e 's/"NULL"/NULL/g' ${txtFile}
     timeof="$(stepTime 'end')"
     [[ "${verbose}" -eq "1" ]] && echo "OK. Elapsed time - ${timeof}"
 done
@@ -224,17 +237,18 @@ for vTable in "${tList[@]}"; do
         # If force is present, DROP and CREATE table
         $vCmd -c "DROP TABLE ${vdbDb}.${vTable};"
         cat tmp/${vTable}.sql.prep|$vCmd
-        cat tmp/${vTable}.txt|pigz -5 -p 8|$vCmd -c "COPY ${vdbDb}.${vTable} FROM STDIN GZIP DELIMITER ',' NULL 'NULL' ENCLOSED BY '\"' REJECTED DATA '/home/dbadmin/rejected_${vTable}.log' EXCEPTIONS '/home/dbadmin/exceptions_${vTable}.log' DIRECT ;"
+        cat tmp/${vTable}.txt|$vCmd -c "COPY ${vdbDb}.${vTable} FROM STDIN DELIMITER ',' NULL 'NULL' ENCLOSED BY '\"' REJECTED DATA '/home/dbadmin/rejected_${vTable}.log' EXCEPTIONS '/home/dbadmin/exceptions_${vTable}.log' DIRECT ;"
     else
         if [[ -n "${whereClause}" ]]; then
-            cat tmp/${vTable}.txt|pigz -5 -p 8|$vCmd -c "BEGIN; DELETE FROM ${vdbDb}.${vTable} WHERE ${whereClause}; COPY ${vdbDb}.${vTable} FROM STDIN GZIP DELIMITER ',' NULL 'NULL' ENCLOSED BY '\"' DIRECT ;"
-         else
-            if [[ "${verbose}" -eq "1" ]]; then
-                cat tmp/${vTable}.txt|pv -pterab -s `du -sm tmp/${vTable}.txt |awk '{print $1*1024*1024}'`|pigz -5 -p 8|$vCmd -c "BEGIN; DELETE FROM ${vdbDb}.${vTable}; COPY ${vdbDb}.${vTable} FROM STDIN GZIP DELIMITER ',' NULL 'NULL' ENCLOSED BY '\"' DIRECT ;"
-            else
-                cat tmp/${vTable}.txt|pigz -5 -p 8|$vCmd -c "BEGIN; DELETE FROM ${vdbDb}.${vTable}; COPY ${vdbDb}.${vTable} FROM STDIN GZIP DELIMITER ',' NULL 'NULL' ENCLOSED BY '\"' DIRECT ;"
-            fi
-         fi
+            [[ "${keep}" -eq "1" ]] && preCMD="" || preCMD="BEGIN; DELETE FROM ${vdbDb}.${vTable} WHERE ${whereClause};"
+        else
+            [[ "${keep}" -eq "1" ]] && preCMD="" || preCMD="BEGIN; DELETE FROM ${vdbDb}.${vTable};"
+        fi
+        if [[ "${progress}" -eq "1" ]]; then
+                cat tmp/${vTable}.txt|pv -pterb -s `du -sm tmp/${vTable}.txt |awk '{print $1*1024*1024}'`|$vCmd -c "${preCMD} COPY ${vdbDb}.${vTable} FROM STDIN DELIMITER ',' NULL 'NULL' ENCLOSED BY '\"' DIRECT ;"
+        else
+                cat tmp/${vTable}.txt|$vCmd -c "${preCMD} COPY ${vdbDb}.${vTable} FROM STDIN DELIMITER ',' NULL 'NULL' ENCLOSED BY '\"' DIRECT ;"
+        fi
     fi
     timeof="$(stepTime 'end')"
     [[ "${verbose}" -eq "1" ]] && echo "DONE. Elapsed time - ${timeof}"
