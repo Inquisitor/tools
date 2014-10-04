@@ -1,0 +1,29 @@
+{ 
+	"http": 
+	{
+		"url" : "http://172.18.6.4/upload",
+		"auth":
+		{
+			"user": false,
+			"pass": ""
+		}
+	},
+	"logger": {
+		"path": "/var/log/dedicated",
+		"fmask":
+		{
+			"prefix": "*__",
+			"suffix": ".txt"
+		},
+		"mvafter": true,
+		"mvsuffix": ".synced",
+		"addHostname": true,
+		"parseReplays": true,
+		"replayPattern": "roomId:([a-f0-9]*)",
+		"rmask":
+		{
+		    "prefix": "roomid_",
+		    "suffix": ".rep"
+		}
+	}
+}

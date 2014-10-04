@@ -1,0 +1,11 @@
+{
+  "enabled": true,
+  "check_interval": 2,
+  "update_class": "GitUpdater",
+  "GitUpdater":
+    {
+      "gitDir": "/home/nox/warthunder/dedicated.git",
+      "workDir": "/home/nox/warthunder",
+      "addCircuit": true
+    }
+}

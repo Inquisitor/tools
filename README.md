@@ -61,3 +61,11 @@ vhealth
 ----------------
 Python daemon to check vertica nodes via http (for haproxy health checher)
 
+logSync
+----------------
+Prototype python module to on demand or realtime sync logs via http put method from another python application
+
+hostsUpdater
+----------------
+Not completed/prototype module for deploy/update code from git repository with versionning based on tags
+Universal prototype + GitUpdater as parent module (it can be configured in json config file)
