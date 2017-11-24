@@ -169,7 +169,7 @@ else
         stepTime 'start'
         mysql -nCB -N -h${myHost} -u${myUser} -p${myPass} -e "SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED; SELECT * FROM ${tDump};" ${myDb} \
     	|sed "s/\"/'/g"| awk -F '\t' '{ for (i=0; ++i <= NF;) { if (i==NF) { printf "\"%s\"",$(i) } else { printf "\"%s\",",$(i) } }; printf "\n" }' \
-    	|sed -e 's/"0000-00-00"/NULL/g' -e 's/"0000-00-00 00:00:00"/NULL/g' -e 's/\\N/NULL/g' -e 's/"NULL"/NULL/g'|pv -trbf > tmp/${myTable}.txt; mSelectRes=$?;
+    	|sed -e 's/"0000-00-00"/NULL/g' -e 's/"0000-00-00 00:00:00"/NULL/g' -e 's/\\N/NULL/g' -e 's/"NULL"/NULL/g'|pv -trbf > tmp/${tDump}.txt; mSelectRes=$?;
 
         tDumpLines=$(cat tmp/${tDump}.txt 2>/dev/null|wc -l 2>/dev/null)
         tBytes=$(ls -lab tmp/${tDump}.txt 2>/dev/null|awk '{print $5}' 2>/dev/null)
